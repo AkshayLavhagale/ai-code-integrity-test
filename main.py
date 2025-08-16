@@ -12,12 +12,28 @@ class CodebaseIndexer(ast.NodeVisitor):
     """
     Traverses an Abstract Syntax Tree (AST) to find all function, class,
     and variable names, creating an index of valid objects in the codebase.
+    This includes imported modules and function arguments.
     """
     def __init__(self):
-        self.defined_names = set()
+        # Initialize with 'self' as it's a common, valid name in class methods.
+        self.defined_names = set(['self'])
+
+    def visit_Import(self, node):
+        for alias in node.names:
+            self.defined_names.add(alias.name)
+        self.generic_visit(node)
+
+    def visit_ImportFrom(self, node):
+        for alias in node.names:
+            self.defined_names.add(alias.name)
+        self.generic_visit(node)
 
     def visit_FunctionDef(self, node):
+        # Add the function name itself
         self.defined_names.add(node.name)
+        # Add all of the function's arguments
+        for arg in node.args.args:
+            self.defined_names.add(arg.arg)
         self.generic_visit(node)
 
     def visit_ClassDef(self, node):
@@ -138,7 +154,20 @@ def main():
         if stripped_path.endswith(".py"):
             print(f"--> Analyzing file: {stripped_path}") # DEBUG LOGGING
             full_path = os.path.join(args.repo_path, stripped_path)
-            hallucinations = analyze_file(full_path, codebase_index)
+            # We need to add the names defined in the current file to the index
+            # before analyzing it, to catch variables defined and used in the same file.
+            current_file_index = codebase_index.copy()
+            file_indexer = CodebaseIndexer()
+            try:
+                with open(full_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    tree = ast.parse(content, filename=full_path)
+                    file_indexer.visit(tree)
+                    current_file_index.update(file_indexer.defined_names)
+            except (SyntaxError, UnicodeDecodeError) as e:
+                 print(f"Warning: Could not parse {full_path} for self-analysis. Error: {e}")
+
+            hallucinations = analyze_file(full_path, current_file_index)
             
             if hallucinations:
                 print(f"--> Found {len(hallucinations)} hallucinations in {stripped_path}: {hallucinations}") # DEBUG LOGGING
@@ -165,8 +194,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# This is a test to trigger the hallucination detector
-this_is_a_fake_function_that_does_not_exist()
-
     
