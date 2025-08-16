@@ -127,7 +127,7 @@ def main():
 
     print("Phase 1: Indexing codebase...")
     codebase_index = index_directory(args.repo_path)
-    print(f"Indexed {len(codebase_index)} objects.")
+    print(f"--> Indexed {len(codebase_index)} total objects in the repository.") # DEBUG LOGGING
 
     all_hallucinations = []
     changed_files_list = args.changed_files.split(',')
@@ -136,10 +136,12 @@ def main():
     for file_path in changed_files_list:
         stripped_path = file_path.strip()
         if stripped_path.endswith(".py"):
-            print(f"Analyzing {stripped_path}...")
+            print(f"--> Analyzing file: {stripped_path}") # DEBUG LOGGING
             full_path = os.path.join(args.repo_path, stripped_path)
             hallucinations = analyze_file(full_path, codebase_index)
+            
             if hallucinations:
+                print(f"--> Found {len(hallucinations)} hallucinations in {stripped_path}: {hallucinations}") # DEBUG LOGGING
                 # Add the file path to each hallucination dictionary
                 for h in hallucinations:
                     h_with_file = h.copy()
@@ -163,6 +165,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-# This is a test to trigger the hallucination detector
-this_is_a_fake_function_that_does_not_exist()
-
+    
